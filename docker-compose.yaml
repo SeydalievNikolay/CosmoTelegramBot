@@ -1,0 +1,23 @@
+version: '3.1'
+services:
+  cosmitologistoffice:
+    depends_on:
+      - postgres
+    build:
+      context: .
+    environment:
+      - 'BOT_NAME=${BOT_NAME}'
+      - 'BOT_TOKEN=${BOT_TOKEN}'
+      - 'BOT_DB_USERNAME=${BOT_DB_USERNAME}'
+      - 'BOT_DB_PASSWORD=${BOT_DB_PASSWORD}'
+    restart: always
+  postgres:
+    image: 'postgres:latest'
+    restart: always
+    container_name: 'cosmitolog-office'
+    environment:
+      - 'POSTGRES_USER=${BOT_DB_USERNAME}'
+      - 'POSTGRES_PASSWORD=${BOT_DB_PASSWORD}'
+      - 'POSTGRES_DB=cosmetologistsoffice_bot'
+    ports:
+      - '5432:5432'

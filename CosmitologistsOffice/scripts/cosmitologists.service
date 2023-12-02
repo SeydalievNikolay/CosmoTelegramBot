@@ -13,4 +13,4 @@ Type=simple
 ExecStart=/usr/bin/java -jar /telegramBots/CosmitologistsOffice.jar
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-chatUser.target

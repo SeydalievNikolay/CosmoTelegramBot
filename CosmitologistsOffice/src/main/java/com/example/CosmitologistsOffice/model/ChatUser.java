@@ -1,9 +1,6 @@
 package com.example.CosmitologistsOffice.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,7 +11,7 @@ import java.sql.Timestamp;
 @ToString
 @NoArgsConstructor
 @Entity(name = "usersDataTable")
-public class User {
+public class ChatUser {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long chatId;
@@ -22,7 +19,7 @@ public class User {
     private String firstName;
 
     private String lastName;
-
+    @Column(unique = true)
     private String userName;
 
     private Timestamp registeredAt;
