@@ -7,8 +7,7 @@ import com.example.CosmitologistsOffice.repository.UserRepository;
 import com.vdurmont.emoji.EmojiParser;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -22,8 +21,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import java.util.ArrayList;
 import java.util.List;
 
-@Component
-@Lazy
+@Service
 @Slf4j
 public class TelegramBotService extends TelegramLongPollingBot {
     @Autowired
@@ -34,7 +32,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private StaticConstant staticConstant;
     @Autowired
     private SendMessageForUser sendMessageForUser;
-    private final BotConfig config;
+    final BotConfig config;
 
     public TelegramBotService(BotConfig botConfig) {
         this.config = botConfig;
@@ -56,50 +54,36 @@ public class TelegramBotService extends TelegramLongPollingBot {
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
-
             if(messageText.contains("/send") && config.getOwnerId() == chatId) {
                 var textToSend = EmojiParser.parseToUnicode(messageText.substring(messageText.indexOf(" ")));
                 var users = userRepository.findAll();
                 for (ChatUser user: users){
                     sendMessageForUser.prepareAndSendMessage(user.getChatId(), textToSend);
                 }
-            }
-
-            else {
-
+            } else {
                 switch (messageText) {
                     case "/start":
-
                         register.registerUser(update.getMessage());
                         startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
                         break;
-
                     case "/help":
-
                         sendMessageForUser.prepareAndSendMessage(chatId, staticConstant.HELP_TEXT);
                         break;
-
                     case "/register":
-
                         register.register(chatId);
                         break;
-
                     default:
-
-                        sendMessageForUser.prepareAndSendMessage(chatId, "Извините, пока я этого не умею" + "");
-
+                        sendMessageForUser.prepareAndSendMessage(chatId, "Извините, пока я этого не умею" + " ");
                 }
             }
         } else if (update.hasCallbackQuery()) {
             String callbackData = update.getCallbackQuery().getData();
             long messageId = update.getCallbackQuery().getMessage().getMessageId();
             long chatId = update.getCallbackQuery().getMessage().getChatId();
-
             if(callbackData.equals(staticConstant.YES_BUTTON)){
                 String text = "Да";
                 sendMessageForUser.executeEditMessageText(text, chatId, messageId);
-            }
-            else if(callbackData.equals(staticConstant.NO_BUTTON)){
+            } else if(callbackData.equals(staticConstant.NO_BUTTON)){
                 String text = "Нет";
                 sendMessageForUser.executeEditMessageText(text, chatId, messageId);
             }

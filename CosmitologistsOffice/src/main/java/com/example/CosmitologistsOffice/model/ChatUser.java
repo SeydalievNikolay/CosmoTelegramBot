@@ -1,15 +1,15 @@
 package com.example.CosmitologistsOffice.model;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
+
 import java.sql.Timestamp;
 @Getter
 @Setter
 @ToString
 @NoArgsConstructor
+@AllArgsConstructor
+@EqualsAndHashCode
 @Entity(name = "usersDataTable")
 public class ChatUser {
     @Id
@@ -20,7 +20,7 @@ public class ChatUser {
 
     private String lastName;
     @Column(unique = true)
-    private String userName;
+    private String username;
 
     private Timestamp registeredAt;
 

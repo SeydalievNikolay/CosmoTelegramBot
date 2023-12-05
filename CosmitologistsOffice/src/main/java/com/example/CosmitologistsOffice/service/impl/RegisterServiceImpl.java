@@ -34,7 +34,7 @@ public class RegisterServiceImpl implements RegisterService {
             var chat = msg.getChat();
             ChatUser chatUser = new ChatUser();
             chatUser.setChatId(chatId);
-            chatUser.setUserName(chat.getUserName());
+            chatUser.setUsername(chat.getUserName());
             chatUser.setFirstName(chat.getFirstName());
             chatUser.setLastName(chat.getLastName());
             chatUser.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
