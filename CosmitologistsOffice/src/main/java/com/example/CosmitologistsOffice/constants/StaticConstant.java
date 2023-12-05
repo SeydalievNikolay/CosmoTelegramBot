@@ -1,8 +1,5 @@
 package com.example.CosmitologistsOffice.constants;
 
-import org.springframework.stereotype.Component;
-
-@Component
 public class StaticConstant {
     public String YES_BUTTON = "YES_BUTTON";
     public  String NO_BUTTON = "NO_BUTTON";

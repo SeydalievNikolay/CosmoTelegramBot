@@ -28,8 +28,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
     private RegisterService register;
     @Autowired
     private UserRepository userRepository;
-    @Autowired
-    private StaticConstant staticConstant;
+    private  StaticConstant staticConstant;
     @Autowired
     private SendMessageForUser sendMessageForUser;
     final BotConfig config;

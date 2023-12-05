@@ -22,14 +22,14 @@ import java.util.List;
 public class RegisterServiceImpl implements RegisterService {
     @Autowired
     private UserRepository userRepository;
-    @Autowired
+
     private StaticConstant staticConstant;
     @Autowired
     private SendMessageForUser sendMessageForUser;
 
     @Override
     public void registerUser(Message msg) {
-        if (!userRepository.findByUsername(msg.getChat().getUserName())) {
+        if (userRepository.findById(msg.getChatId()).isEmpty()) {
             var chatId = msg.getChatId();
             var chat = msg.getChat();
             ChatUser chatUser = new ChatUser();
@@ -42,6 +42,14 @@ public class RegisterServiceImpl implements RegisterService {
             log.info("user saved: " + chatUser);
         }
     }
+/*@Override
+    public ChatUser getChatUser(long chatId) {
+        ChatUser user = userRepository.findById(chatId);
+        if (user == null) {
+            user =new ChatUser();
+        }
+        return user;
+    }*/
 
     @Override
     public void register(long chatId) {
