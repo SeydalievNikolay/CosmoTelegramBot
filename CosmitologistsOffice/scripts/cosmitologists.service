@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram Bot
+After=syslog.target network.target
+
+[Service]
+SuccessExitStatus=143
+
+User=root
+Group=root
+
+Type=simple
+
+ExecStart=/usr/bin/java -jar /telegramBots/CosmitologistsOffice.jar
+
+[Install]
+WantedBy=multi-chatUser.target
