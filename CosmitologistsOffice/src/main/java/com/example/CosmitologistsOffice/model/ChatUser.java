@@ -10,16 +10,18 @@ import java.sql.Timestamp;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
-@Entity(name = "usersDataTable")
+@Entity(name = "users_data_table")
 public class ChatUser {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
     private Long chatId;
 
     private String firstName;
 
     private String lastName;
-    @Column(unique = true)
+
     private String username;
 
     private Timestamp registeredAt;
