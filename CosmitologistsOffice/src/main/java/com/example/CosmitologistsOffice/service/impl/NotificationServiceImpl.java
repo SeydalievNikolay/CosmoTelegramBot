@@ -5,24 +5,24 @@ import com.example.CosmitologistsOffice.model.Appointment;
 import com.example.CosmitologistsOffice.model.ChatUser;
 import com.example.CosmitologistsOffice.model.Cosmetologist;
 import com.example.CosmitologistsOffice.repository.ChatUserRepository;
+import com.example.CosmitologistsOffice.service.BotLogicService;
 import com.example.CosmitologistsOffice.service.NotificationService;
-import com.example.CosmitologistsOffice.service.SendMessageForUserService;
 import com.example.CosmitologistsOffice.service.ServicePriceProvider;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 
 @Slf4j
-@Service
 public class NotificationServiceImpl implements NotificationService {
-    @Autowired
-    private SendMessageForUserService sendMessageForUserService;
-    @Autowired
-    private ChatUserRepository chatUserRepository;
-    @Autowired
-    private ServicePriceProvider servicePriceProvider;
+    private final BotLogicService botLogicService;
+    private final ChatUserRepository chatUserRepository;
+    private final ServicePriceProvider servicePriceProvider;
+
+    public NotificationServiceImpl(BotLogicService botLogicService, ChatUserRepository chatUserRepository, ServicePriceProvider servicePriceProvider) {
+        this.botLogicService = botLogicService;
+        this.chatUserRepository = chatUserRepository;
+        this.servicePriceProvider = servicePriceProvider;
+    }
 
     public void notifyCosmetologist(Appointment appointment) {
         log.debug("Начало уведомления косметолога для записи ID: {}", appointment.getId());
@@ -34,21 +34,20 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         ChatUser chatUser = chatUserRepository.findByChatId(appointment.getChatId())
-                .orElseThrow(() -> new ChatUserNotFoundException("ChatUser not found for chatId: " + appointment.getChatId()));
+                .orElseThrow(() -> new ChatUserNotFoundException("Пользователь не найден по chatId: " + appointment.getChatId()));
 
+        BigDecimal servicePrice = BigDecimal.ZERO;
+        String message = "";
         try {
-            BigDecimal servicePrice = servicePriceProvider.getServicePrice(appointment.getService());
-
-            String message = formatNotificationMessage(appointment, chatUser, servicePrice);
+            servicePrice = servicePriceProvider.getServicePrice(appointment.getService());
+            message = formatNotificationMessage(appointment, chatUser, servicePrice);
 
             log.info("Отправка уведомления косметологу (ID: {}): {}", cosmetologist.getId(), message);
 
-            sendMessageForUserService.sendSuccessMessage(cosmetologist.getTelegramChatId(), message);
+            botLogicService.sendSuccessMessage(cosmetologist.getTelegramChatId(), message);
 
-            sendSMSNotificationIfRequired(cosmetologist, message);
         } catch (Exception e) {
-            log.error("Ошибка при отправке уведомления для записи ID: {}. Текст сообщения: {}", appointment.getId(),
-                    formatNotificationMessage(appointment, chatUser, servicePriceProvider.getServicePrice(appointment.getService())), e);
+            log.error("Ошибка при отправке уведомления для записи ID: {}. Ошибка: {}", appointment.getId(), e.getMessage(), e);
         }
     }
 
@@ -61,32 +60,6 @@ public class NotificationServiceImpl implements NotificationService {
                 "Время: " + appointment.getTime() + "\n" +
                 "Клиент: " + chatUser.getFirstName() + " " + chatUser.getLastName() + "\n" +
                 "Телефон клиента: " + chatUser.getUsername();
-    }
-
-    private void sendSMSNotificationIfRequired(Cosmetologist cosmetologist, String message) {
-        String notificationNumber = getNotificationNumber(cosmetologist);
-        if (notificationNumber != null) {
-            log.info("Попытка отправки уведомления по SMS для косметолога ID: {}, номер: {}",
-                    cosmetologist.getId(), notificationNumber);
-            // Пример интеграции с SMS-поставщиком
-            // Twilio.sendMessage(notificationNumber, message);
-        } else {
-            log.warn("Номер телефона или никнейм не найден для косметолога ID: {}", cosmetologist.getId());
-        }
-    }
-    private String getNotificationNumber(Cosmetologist cosmetologist) {
-        if (cosmetologist.getPhone() != null && !cosmetologist.getPhone().isEmpty()) {
-            return cosmetologist.getPhone();
-        } else if (cosmetologist.getNickName() != null && !cosmetologist.getNickName().isEmpty()) {
-            return "@" + cosmetologist.getNickName();
-        }
-        return null;
-    }
-
-    private void sendNotification(String number, String message) {
-        log.info("Попытка отправки уведомления по номеру: {}", number);
-        // Пример интеграции с SMS-поставщиком
-        // Twilio.sendMessage(number, message);
     }
 }
 

@@ -5,20 +5,18 @@ import com.example.CosmitologistsOffice.exceptions.ChatUserNotFoundException;
 import com.example.CosmitologistsOffice.model.Appointment;
 import com.example.CosmitologistsOffice.model.ChatUser;
 import com.example.CosmitologistsOffice.model.Cosmetologist;
-import com.example.CosmitologistsOffice.repository.CosmetologistRepository;
 import com.example.CosmitologistsOffice.repository.ChatUserRepository;
+import com.example.CosmitologistsOffice.repository.CosmetologistRepository;
 import com.example.CosmitologistsOffice.service.AppointmentService;
+import com.example.CosmitologistsOffice.service.NotificationService;
 import com.example.CosmitologistsOffice.service.RegisterService;
-import com.example.CosmitologistsOffice.service.SendMessageForUserService;
 import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -26,23 +24,14 @@ import java.util.List;
 import java.util.Optional;
 
 @Slf4j
-@Service
 @AllArgsConstructor
-@NoArgsConstructor
 public class RegisterServiceImpl implements RegisterService {
-    @Autowired
-    private ChatUserRepository chatUserRepository;
-    @Autowired
-    private SendMessageForUserService sendMessageForUserService;
 
-    @Autowired
-    private NotificationServiceImpl notificationService;
-
-    @Autowired
-    private CosmetologistRepository cosmetologistRepository;
-
-    @Autowired
-    private AppointmentService appointmentService;
+    private final ChatUserRepository chatUserRepository;
+    private final TelegramMessageSender telegramMessageSender;
+    private final NotificationService notificationService;
+    private final CosmetologistRepository cosmetologistRepository;
+    private final AppointmentService appointmentService;
 
     @Override
     public void registerUser(Message msg) {
@@ -55,8 +44,6 @@ public class RegisterServiceImpl implements RegisterService {
             chatUser.setLastName(msg.getChat().getLastName());
             chatUser.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
 
-            registerCosmetologist(chatUser, msg.getChatId());
-
             chatUserRepository.save(chatUser);
             log.info("User saved: " + chatUser);
         } else {
@@ -66,7 +53,7 @@ public class RegisterServiceImpl implements RegisterService {
 
 
     @Override
-    public void register(long chatId) {
+    public void register(long chatId) throws TelegramApiException {
 
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
@@ -77,7 +64,7 @@ public class RegisterServiceImpl implements RegisterService {
         markupInLine.setKeyboard(rowsInLine);
         message.setReplyMarkup(markupInLine);
 
-        sendMessageForUserService.executeMessage(message);
+        telegramMessageSender.sendMessage(message);
     }
 
     private List<List<InlineKeyboardButton>> getListsButtonsForRegister() {
@@ -101,15 +88,12 @@ public class RegisterServiceImpl implements RegisterService {
         if (cosmetologist == null) {
             cosmetologist = new Cosmetologist();
             cosmetologist.setName("Александра");
-            cosmetologist.setTelegramChatId(341641617L); // Это значение можно параметризовать или брать из другого источника
+            cosmetologist.setTelegramChatId(341641617L);
             cosmetologist.setNickName("Aleksandra_Seydalieva");
             cosmetologistRepository.save(cosmetologist);
         }
-
-        // Создаем новую запись
         Appointment newAppointment = appointmentService.createNewAppointment(cosmetologist, chatUser);
 
-        // Уведомляем косметолога
         notificationService.notifyCosmetologist(newAppointment);
     }
 

@@ -1,19 +1,15 @@
 package com.example.CosmitologistsOffice.service.impl;
 
 import com.example.CosmitologistsOffice.config.BotConfig;
-import com.example.CosmitologistsOffice.constants.StaticConstant;
-import com.example.CosmitologistsOffice.exceptions.AppointmentNotFoundException;
 import com.example.CosmitologistsOffice.model.Appointment;
+import com.example.CosmitologistsOffice.model.Service;
 import com.example.CosmitologistsOffice.repository.AppointmentRepository;
-import com.example.CosmitologistsOffice.repository.ChatUserRepository;
-import com.example.CosmitologistsOffice.repository.CosmetologistRepository;
 import com.example.CosmitologistsOffice.repository.ServiceRepository;
 import com.example.CosmitologistsOffice.service.*;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
@@ -30,46 +26,35 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Slf4j
-@Service
 public class TelegramBotServiceImpl extends TelegramLongPollingBot implements TelegramBotService {
-    @Autowired
-    private SendMessageForUserService sendMessageForUserService;
-    @Autowired
-    private AppointmentService appointmentService;
-    @Autowired
-    private ServicePriceProvider servicePriceProvider;
-    @Autowired
-    private NotificationService notificationService;
-    @Autowired
-    private ChatUserRepository chatUserRepository;
-    @Autowired
-    private ServiceRepository serviceRepository;
-    @Autowired
-    private AppointmentRepository appointmentRepository;
-    @Autowired
-    private CosmetologistRepository cosmetologistRepository;
-    @Autowired
-    private StaticConstant staticConstant;
+    private final BotLogicService botLogicService;
+    private final AppointmentService appointmentService;
+    private final ServicePriceProvider servicePriceProvider;
+    private final NotificationService notificationService;
+    private final AppointmentRepository appointmentRepository;
+    private final ServiceRepository serviceRepository;
+    private final RegisterService registerService;
     final BotConfig config;
 
-
-    @Autowired
-    public void setRegister(RegisterService register) {
+    public TelegramBotServiceImpl(BotLogicService botLogicService,
+                                  AppointmentService appointmentService,
+                                  ServicePriceProvider servicePriceProvider,
+                                  NotificationService notificationService,
+                                  AppointmentRepository appointmentRepository,
+                                  ServiceRepository serviceRepository,
+                                  RegisterService registerService,
+                                  BotConfig config) {
+        super(config.getToken());
+        this.botLogicService = botLogicService;
+        this.appointmentService = appointmentService;
+        this.servicePriceProvider = servicePriceProvider;
+        this.notificationService = notificationService;
+        this.appointmentRepository = appointmentRepository;
+        this.serviceRepository = serviceRepository;
+        this.registerService = registerService;
+        this.config = config;
     }
 
-    @Autowired
-    public void setUserRepository(ChatUserRepository chatUserRepository) {
-        this.chatUserRepository = chatUserRepository;
-    }
-
-    @Autowired
-    public void setStaticConstant(StaticConstant staticConstant) {
-        this.staticConstant = staticConstant;
-    }
-
-    public TelegramBotServiceImpl(BotConfig botConfig) {
-        this.config = botConfig;
-    }
 
     @Override
     public String getBotToken() {
@@ -100,32 +85,32 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         long chatId = update.getMessage().getChatId();
         log.debug("Полученный текст: {}, ID чата: {}", messageText, chatId);
 
-
         Appointment appointment = appointmentService.getOrCreateAppointment(chatId);
 
         log.debug("Начало обработки команды");
-        SendMessageForUserService sendMessageService = new SendMessageForUserServiceImpl();
-        sendMessageService.setTelegramBotService(this);
-
         switch (messageText.toLowerCase()) {
             case "/start":
                 log.info("Получена команда /start");
                 String userName = update.getMessage().getFrom().getFirstName();
-                sendMessageService.startCommandReceived(chatId, userName);
+                String lastName = update.getMessage().getFrom().getLastName();
+                String username = update.getMessage().getFrom().getUserName();
+
+                botLogicService.startCommandReceived(chatId, userName, lastName, username);
                 break;
             case "помощь":
                 log.info("Получена команда помощь");
-                sendMessageService.sendHelpMessage(chatId, messageText);
+                botLogicService.sendHelpMessage(chatId, messageText);
                 break;
-            case "выбрать_услугу":
+            case "выбрать услугу":
                 log.info("Получена команда выбрать_услугу");
                 sendServiceOptions(chatId);
+                handleSelectService(chatId, messageText);
                 break;
-            case "выбрать_дату_и_время":
+            case "выбрать дату и время":
                 log.info("Получена команда выбрать_дату_и_время");
                 sendDateAndTimeSelection(chatId, appointment.getService());
                 break;
-            case "отменить_или_перенести_запись":
+            case "отменить или перенести запись":
                 log.info("Получена команда отменить_или_перенести_запись");
                 handleCancelOrReschedule(chatId, appointment);
                 break;
@@ -141,7 +126,7 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
                     appointment.setTime(messageText);
                     sendConfirmation(chatId, appointment);
                 } else {
-                    sendMessageForUserService.sendErrorMessage(chatId, "Неизвестная команда. Пожалуйста, используйте кнопки или команды из меню.");
+                    botLogicService.sendErrorMessage(chatId, "Неизвестная команда. Пожалуйста, используйте кнопки или команды из меню.");
                 }
         }
 
@@ -158,16 +143,22 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         String callbackData = callbackQuery.getData();
         long chatId = callbackQuery.getMessage().getChatId();
 
+        String firstName = callbackQuery.getFrom().getFirstName();
+        String lastName = callbackQuery.getFrom().getLastName();
+        String username = callbackQuery.getFrom().getUserName();
+
         Appointment appointment = appointmentService.getOrCreateAppointment(chatId);
 
         switch (callbackData.toLowerCase()) {
             case "/start":
                 log.info("Получена команда /start");
-                sendMessageForUserService.startCommandReceived(chatId, callbackQuery.getFrom().getFirstName());
+                botLogicService.startCommandReceived(chatId, firstName, lastName, username);
+               /* registerService.registerUser((Message) callbackQuery.getMessage());*/
                 break;
-            case "select_service":
-                log.info("Получена команда select_service");
+            case "service_":
+                log.info("Получена команда service");
                 sendServiceOptions(chatId);
+                handleSelectService(chatId, callbackData);
                 break;
             case "select_date_time":
                 log.info("Получена команда select_date_time");
@@ -179,7 +170,7 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
                 break;
             case "show_help":
                 log.info("Получена команда show_help");
-                sendMessageForUserService.sendHelpMessage(chatId, "Помощь");
+                botLogicService.sendHelpMessage(chatId, "Помощь");
                 break;
             case "cancel_appointment":
             case "no_button":
@@ -194,7 +185,6 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
                 log.info("Получена команда yes_button");
                 confirmAppointment(chatId);
                 appointmentRepository.save(appointment);
-                notificationService.notifyCosmetologist(appointment);
                 break;
             case "record_yes":
                 log.info("Получена команда RECORD_YES");
@@ -202,17 +192,39 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
                 break;
             case "record_no":
                 log.info("Получена команда RECORD_NO");
-                sendMessageForUserService.sendSuccessMessage(chatId, "Хорошо, спасибо за понимание.");
+                botLogicService.sendSuccessMessage(chatId, "Хорошо, спасибо за понимание.");
                 break;
             default:
                 log.warn("Запись не найдена: {}", callbackData);
         }
 
+        if (callbackData.startsWith("confirm_")) {
+            long appointmentId = extractAppointmentId(callbackData);
+            log.info("Подтверждена запись с ID: {}", appointmentId);
+            confirmAppointment(chatId);
+        } else if (callbackData.startsWith("cancel_")) {
+            long appointmentId = extractAppointmentId(callbackData);
+            log.info("Запись отменена с ID: {}", appointmentId);
+            cancelAppointment(chatId);
+        }
         if (callbackData.startsWith("select_date_time")) {
             handleDateSelection(callbackQuery.getMessage().getChatId(), callbackData);
         } else if (callbackData.startsWith("cancel_reschedule")) {
             handleTimeSelection(callbackQuery.getMessage().getChatId(), callbackData);
         }
+        if (appointment.getDate() != null && appointment.getTime() != null && appointment.getService() != null) {
+            notificationService.notifyCosmetologist(appointment);
+        }
+    }
+
+    @Override
+    public void execute(EditMessageText message) throws TelegramApiException {
+        super.execute(message);
+    }
+
+    @Override
+    public void execute(SendMessage message) throws TelegramApiException {
+        super.execute(message);
     }
 
     private void handleCancelOrReschedule(long chatId, Appointment appointment) {
@@ -230,7 +242,7 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
                 log.error("Ошибка при отправке сообщения для отмены или переноса записи", e);
             }
         } else {
-            sendMessageForUserService.sendErrorMessage(chatId, "У вас нет активной записи для отмены или переноса.");
+            botLogicService.sendErrorMessage(chatId, "У вас нет активной записи для отмены или переноса.");
         }
     }
 
@@ -267,38 +279,33 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         }
     }
 
-
-    private void handleServiceSelection(long chatId, String callbackData) {
+    private void handleSelectService(long chatId, String callbackData) {
         String serviceName = extractServiceName(callbackData);
-        BigDecimal price = servicePriceProvider.getServicePrice(serviceName);
+        log.info("Выбрана услуга: {}", serviceName);
 
-        if (price.compareTo(BigDecimal.ZERO) > 0) {
-            Appointment appointment = appointmentRepository.findByChatId(chatId);
-
-            if (appointment == null) {
-                appointment = new Appointment();
-                appointment.setChatId(chatId);
-            }
-
-            appointment.setService(serviceName);
-            appointment.setPrice(price);
+        Optional<Service> serviceOptional = serviceRepository.findByName(serviceName);
+        if (serviceOptional.isPresent()) {
+            Service service = serviceOptional.get();
+            Appointment appointment = appointmentService.getOrCreateAppointment(chatId);
+            appointment.setService(service.toString());
             appointmentRepository.save(appointment);
 
-            sendMessageForUserService.sendSuccessMessage(chatId, "Услуга '" + serviceName + "' выбрана. Цена: " + price);
-
-            sendCalendarDates(chatId);
+            // Отправляем сообщение с подтверждением
+            sendConfirmation(chatId , appointment);
         } else {
-            sendMessageForUserService.sendErrorMessage(chatId, "Ошибка при выборе услуги.");
+            log.warn("Услуга не найдена: {}", serviceName);
+            botLogicService.sendErrorMessage(chatId, "Услуга не найдена.");
+        }
+    }
+    // Метод для извлечения названия услуги из callbackData
+    private String extractServiceName(String callbackData) {
+        if (callbackData.startsWith("service_")) {
+            return callbackData.substring(7);
+        } else {
+            return callbackData;
         }
     }
 
-    private String extractServiceName(String callbackData) {
-        int index = callbackData.indexOf('_');
-        if (index < 0 || index >= callbackData.length() - 1) {
-            throw new IllegalArgumentException("Неверный формат callback-data для выбора услуги: " + callbackData);
-        }
-        return callbackData.substring(index + 1);
-    }
 
 
     /*    private void handleDateSelection(long chatId, String callbackData) {
@@ -311,9 +318,9 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         }*/
     private void handleDateSelection(long chatId, String callbackData) {
         try {
-            Appointment appointment = appointmentService.getAppointment(chatId);
+            Appointment appointment = appointmentService.getOrCreateAppointment(chatId);
             if (appointment == null) {
-                sendMessageForUserService.sendErrorMessage(chatId, "У вас нет активной записи для подтверждения.");
+                botLogicService.sendErrorMessage(chatId, "У вас нет активной записи для подтверждения.");
                 return;
             }
 
@@ -328,7 +335,7 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
             for (LocalDate date : dates) {
                 InlineKeyboardButton button = new InlineKeyboardButton();
                 button.setText(date.toString());
-                button.setCallbackData("select_date" + serviceName + "_" + date);
+                button.setCallbackData("select_date_time" + serviceName + "_" + date);
                 rows.add(Collections.singletonList(button));
             }
 
@@ -341,11 +348,11 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
 
                 execute(message);
             } else {
-                sendMessageForUserService.sendErrorMessage(chatId, "К сожалению, у нас нет доступных дат для выбора.");
+                botLogicService.sendErrorMessage(chatId, "К сожалению, у нас нет доступных дат для выбора.");
             }
         } catch (Exception e) {
             log.error("Ошибка при обработке выбора даты", e);
-            sendMessageForUserService.sendErrorMessage(chatId, "Произошла ошибка при выборе даты. Попробуйте еще раз.");
+            botLogicService.sendErrorMessage(chatId, "Произошла ошибка при выборе даты. Попробуйте еще раз.");
         }
     }
 
@@ -382,10 +389,10 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         List<InlineKeyboardButton> rowInLine = new ArrayList<>();
         var yesButton = new InlineKeyboardButton();
         yesButton.setText("Да");
-        yesButton.setCallbackData("CONFIRM_" + appointmentId);
+        yesButton.setCallbackData("confirm_" + appointmentId);
         var noButton = new InlineKeyboardButton();
         noButton.setText("Нет");
-        noButton.setCallbackData("CANCEL_" + appointmentId);
+        noButton.setCallbackData("cancel_" + appointmentId);
         rowInLine.add(yesButton);
         rowInLine.add(noButton);
         rowsInLine.add(rowInLine);
@@ -400,24 +407,22 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
             return;
         }
 
-        // Обновляем статус записи как подтвержденную
         appointment.setBooked(true);
         appointment.setBookedAt(new Timestamp(System.currentTimeMillis()));
 
-        // Сохраняем обновления в базе данных
         appointmentRepository.save(appointment);
 
-        sendMessageForUserService.sendSuccessMessage(chatId, "Вы успешно записаны.");
-
-        notificationService.notifyCosmetologist(appointment);
+        botLogicService.sendSuccessMessage(chatId, "Вы успешно записаны.");
     }
 
 
+
+
     private void cancelAppointment(long chatId) {
-        Appointment appointment = appointmentService.getAppointment(chatId);
+        Appointment appointment = appointmentService.getOrCreateAppointment(chatId);
 
         if (appointment == null || !appointment.isBooked()) {
-            sendMessageForUserService.sendErrorMessage(chatId, "У вас нет активной записи для отмены.");
+            botLogicService.sendErrorMessage(chatId, "У вас нет активной записи для отмены.");
         } else {
             appointment.setBookedAt(null);
             appointment.setDate(null);
@@ -443,10 +448,10 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
 
         InlineKeyboardButton row1 = new InlineKeyboardButton();
         row1.setText("Да");
-        row1.setCallbackData("RECORD_YES");
+        row1.setCallbackData("record_yes");
         InlineKeyboardButton row2 = new InlineKeyboardButton();
         row1.setText("Нет");
-        row1.setCallbackData("RECORD_NO");
+        row1.setCallbackData("record_no");
         List<InlineKeyboardButton> rows = new ArrayList<>();
         rows.add(row1);
         rows.add(row2);
@@ -533,22 +538,20 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         return availableTimes;
     }
 
-
-    private void sendServiceOptions(long chatId) {
+    public void sendServiceOptions(long chatId) {
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
-
         Map<String, BigDecimal> services = servicePriceProvider.getServicePrices();
 
         if (!services.isEmpty()) {
+            List<InlineKeyboardButton> row = new ArrayList<>();
+
             for (Map.Entry<String, BigDecimal> entry : services.entrySet()) {
-                List<InlineKeyboardButton> row = new ArrayList<>();
-                for (int i = 0; i < 1; i++) {
-                    InlineKeyboardButton button = new InlineKeyboardButton();
-                    button.setText(entry.getKey() + " (" + entry.getValue() + ")");
-                    button.setCallbackData("select_service_" + entry.getKey());
-                    row.add(button);
-                }
+                InlineKeyboardButton button = new InlineKeyboardButton();
+                button.setText(entry.getKey() + " (" + entry.getValue() + ")");
+                button.setCallbackData("service_" + entry.getKey());
+                row.add(button);
                 keyboard.add(row);
+                row = new ArrayList<>();
             }
 
             InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup(keyboard);
@@ -565,15 +568,25 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
                 log.error("Ошибка при отправке списка услуг", e);
             }
         } else {
-            sendMessageForUserService.sendErrorMessage(chatId, "К сожалению, список услуг пуст.");
+            botLogicService.sendErrorMessage(chatId, "К сожалению, список услуг пуст.");
         }
     }
 
+    private long extractAppointmentId(String callbackData) {
+        try {
+            String[] parts = callbackData.split("_");
+            return Long.parseLong(parts[1]);
+        } catch (NumberFormatException e) {
+            log.error("Неверный формат callbackData для ID записи: {}", callbackData);
+            throw new IllegalArgumentException("Неверный формат callbackData");
+        }
+    }
 
-    private void sendDateAndTimeSelection(long chatId, String selectedService) {
+    // Логика выбора даты и времени
+    public void sendDateAndTimeSelection(long chatId, String selectedService) {
         Appointment appointment = appointmentService.getOrCreateAppointment(chatId);
         if (appointment == null) {
-            sendMessageForUserService.sendErrorMessage(chatId, "У вас нет активной записи для подтверждения.");
+            botLogicService.sendErrorMessage(chatId, "У вас нет активной записи для подтверждения.");
         } else {
             SendMessage message = new SendMessage();
             message.setChatId(String.valueOf(chatId));
@@ -592,51 +605,28 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         }
     }
 
-    /*    private List<List<InlineKeyboardButton>> getListsButtonsForDate() {
-            List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
-            List<LocalDate> dates = getNextFiveDays();
-
-            for (int i = 0; i < dates.size(); i += 3) {
-                List<InlineKeyboardButton> row = new ArrayList<>();
-                for (int j = i; j < Math.min(i + 3, dates.size()); j++) {
-                    InlineKeyboardButton button = new InlineKeyboardButton();
-                    button.setText(dates.get(j).format(DateTimeFormatter.ofPattern("dd.MM.yyyy")));
-                    button.setCallbackData("DATE_" + dates.get(j).toString());
-                    row.add(button);
-                }
-                rowsInLine.add(row);
-            }
-
-            return rowsInLine;
-        }*/
-
     private List<List<InlineKeyboardButton>> getListsButtonsForDate(long chatId) {
-        try {
-            Appointment appointment = appointmentService.getAppointment(chatId);
-            if (appointment == null) {
-                throw new AppointmentNotFoundException("У пользователя нет активной записи");
-            }
-            String serviceName = appointment.getService();
-            LocalDate currentDate = LocalDate.now();
-
-            List<LocalDate> dates = IntStream.range(0, 7)
-                    .mapToObj(currentDate::plusDays)
-                    .toList();
-
-            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-            for (LocalDate date : dates) {
-                InlineKeyboardButton button = new InlineKeyboardButton();
-                button.setText(date.toString());
-                button.setCallbackData("select_date" + serviceName + "_" + date);
-                rows.add(Collections.singletonList(button));
-            }
-
-            return rows;
-        } catch (AppointmentNotFoundException e) {
-            log.warn("Пользователь не имеет активной записи", e);
+        Appointment appointment = appointmentService.getOrCreateAppointment(chatId);
+        if (appointment == null) {
+            log.warn("Пользователь не имеет активной записи");
             return Collections.emptyList();
         }
+
+        String serviceName = appointment.getService();
+        LocalDate currentDate = LocalDate.now();
+
+        List<LocalDate> dates = IntStream.range(0, 7)
+                .mapToObj(currentDate::plusDays)
+                .toList();
+
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        for (LocalDate date : dates) {
+            InlineKeyboardButton button = new InlineKeyboardButton();
+            button.setText(date.toString());
+            button.setCallbackData("select_date_" + serviceName + "_" + date);
+            rows.add(Collections.singletonList(button));
+        }
+
+        return rows;
     }
-
-
 }
