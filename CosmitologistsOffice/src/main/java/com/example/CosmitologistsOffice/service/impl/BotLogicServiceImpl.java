@@ -15,52 +15,65 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Реализация логики работы бота для взаимодействия с пользователями.
+ * Этот сервис обрабатывает команды бота, такие как /start, /help, отправку сообщений пользователям и формирование клавиатуры.
+ */
 @Slf4j
 public class BotLogicServiceImpl implements BotLogicService {
     private final ChatUserService chatUserService;
     private final MessageSender messageSender;
-    private final TelegramMessageSender telegramMessageSender;
 
     public BotLogicServiceImpl(ChatUserService chatUserService,
-                               MessageSender messageSender,
-                               TelegramMessageSender telegramMessageSender) {
+                               MessageSender messageSender) {
         this.chatUserService = chatUserService;
         this.messageSender = messageSender;
-        this.telegramMessageSender = telegramMessageSender;
+
     }
 
+    /**
+     * Обработка команды /start, которая отправляется пользователю при первом взаимодействии с ботом.
+     * Проверяется, существует ли пользователь с данным chatId. Если пользователя нет в базе данных, он создается.
+     *
+     * @param chatId     Идентификатор чата пользователя.
+     * @param firstName  Имя пользователя.
+     * @param lastName   Фамилия пользователя.
+     * @param username   Юзернейм пользователя.
+     * @param phoneNumber Номер телефона пользователя.
+     */
     @Override
-    public void startCommandReceived(Long chatId, String firstName, String lastName, String username) {
+    public void startCommandReceived(Long chatId, String firstName, String lastName, String username, String phoneNumber) {
         log.info("Получена команда /start для чата с ID: {}", chatId);
         log.info("Имя пользователя: {}", firstName);
 
-        // Проверка и создание/обновление пользователя
-        chatUserService.ensureUserExists(chatId, firstName, lastName, username);
-
-        // Получение пользователя после его создания/обновления
-        Optional<ChatUser> optionalChatUser  = chatUserService.getUserByChatId(chatId);
+        Optional<ChatUser> optionalChatUser = chatUserService.getUserByChatId(chatId);
 
         if (optionalChatUser.isEmpty()) {
-            log.error("Ошибка: Пользователь с chatId = {} не найден.", chatId);
-            return;  // если по каким-то причинам пользователя не нашли
+            log.info("Пользователь с chatId {} не найден, создаем нового.", chatId);
+            chatUserService.ensureUserExists(chatId, firstName, lastName, username, phoneNumber);
+        } else {
+            ChatUser existingUser = optionalChatUser.get();
+            if (!existingUser.getFirstName().equals(firstName) ||
+                    !existingUser.getUsername().equals(username)) {
+                log.info("Обновляем данные пользователя с chatId: {}", chatId);
+                chatUserService.ensureUserExists(chatId, firstName, lastName, username,phoneNumber);
+            } else {
+                log.info("Пользователь с chatId {} уже существует и его данные не изменились.", chatId);
+            }
         }
 
-        ChatUser chatUser = optionalChatUser.get();
+        String answer = "Здравствуйте, " + firstName +
+                "! Рада видеть Вас!" + EmojiParser.parseToUnicode(":blush:") +
+                "\n\nДля начала работы воспользуйтесь кнопками ниже";
 
-        String answer = "Здравствуйте, " + chatUser.getFirstName() + "! Рады видеть Вас!" + EmojiParser.parseToUnicode(":blush:") +
-                "\n\nДля начала работы воспользуйтесь кнопками ниже или введите команду:" +
-                "\n- выбрать услугу" +
-                "\n- выбрать дату и время" +
-                "\n- отменить или перенести запись" +
-                "\n- справка";
-
-        log.info("Формирование ответа пользователю" + chatUser.getFirstName());
+        log.info("Формирование ответа пользователю: {}", firstName);
 
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
         message.setText(answer);
         message.setReplyMarkup(getInlineKeyboardMarkup());
-        log.info("Отправка сообщения пользователю" + chatUser.getFirstName());
+
+        log.info("Отправка сообщения пользователю: {}", firstName);
         try {
             messageSender.sendMessage(message);
             log.info("Сообщение успешно отправлено");
@@ -69,30 +82,20 @@ public class BotLogicServiceImpl implements BotLogicService {
         }
     }
 
-    @Override
-    public void sendMessage(long chatId, String textToSend) {
-        SendMessage message = new SendMessage();
-        message.setChatId(String.valueOf(chatId));
-        message.setText(textToSend);
-
-        getInlineKeyboardMarkup();
-
-        try {
-            messageSender.sendMessage(message);
-        } catch (TelegramApiException e) {
-            log.error("Ошибка при отправке сообщения", e);
-        }
-    }
-
+    /**
+     * Обработка команды /help, которая предоставляет пользователю информацию о функциональности бота.
+     *
+     * @param chatId Идентификатор чата пользователя.
+     * @param message Сообщение, переданное пользователем.
+     */
     @Override
     public void sendHelpMessage(long chatId, String message) {
-        log.info("Received /help command from user: {}", message);
+        log.info("Получена команда /help пользователем: {}", message);
         String helpText = "Привет! Я бот для записи на услуги косметолога.\n\n" +
                 "Вот несколько команд, которые ты можешь использовать:\n\n" +
-                "1. **Выбрать услугу** - выбери услугу, которую хочешь записать.\n" +
-                "2. **Выбрать дату и время** - выбери дату и время для записи.\n" +
-                "3. **Помощь** - получи информацию о том, как использовать бота.\n" +
-                "4. **Отменить или перенести запись** - отмени или перенеси свою запись.\n\n" +
+                " **Выбрать услугу** - выбери услугу, которую хочешь записать.\n" +
+                " **Помощь** - получи информацию о том, как использовать бота.\n" +
+                " **Отменить или перенести запись** - отмени или перенеси свою запись.\n\n" +
                 "Как только ты выберешь услугу и дату, я помогу тебе с записью!";
 
         SendMessage sendMessage = new SendMessage();
@@ -107,6 +110,12 @@ public class BotLogicServiceImpl implements BotLogicService {
         }
     }
 
+    /**
+     * Отправка сообщения об ошибке пользователю.
+     *
+     * @param chatId       Идентификатор чата пользователя.
+     * @param errorMessage Сообщение об ошибке.
+     */
     @Override
     public void sendErrorMessage(long chatId, String errorMessage) {
         SendMessage sendMessage = new SendMessage();
@@ -120,6 +129,12 @@ public class BotLogicServiceImpl implements BotLogicService {
         }
     }
 
+    /**
+     * Отправка успешного сообщения пользователю.
+     *
+     * @param chatId Идентификатор чата пользователя.
+     * @param message Сообщение, которое нужно отправить.
+     */
     @Override
     public void sendSuccessMessage(Long chatId, String message) {
         SendMessage sendMessage = new SendMessage();
@@ -132,35 +147,31 @@ public class BotLogicServiceImpl implements BotLogicService {
             log.error("Ошибка при отправке сообщения о подтверждении", e);
         }
     }
+
+    /**
+     * Формирует клавиатуру с кнопками для пользователя.
+     * Включает кнопки для выбора услуги, отмены записи и вызова справки.
+     *
+     * @return Объект клавиатуры с кнопками.
+     */
     private InlineKeyboardMarkup getInlineKeyboardMarkup() {
         InlineKeyboardMarkup keyboardMarkup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> keyboardRows = new ArrayList<>();
 
-        // Строка с выбором услуги
         List<InlineKeyboardButton> selectServiceRow = new ArrayList<>();
         InlineKeyboardButton selectServiceButton = new InlineKeyboardButton();
         selectServiceButton.setText("Выбрать услугу");
-        selectServiceButton.setCallbackData("service_");
+        selectServiceButton.setCallbackData("select_service");
         selectServiceRow.add(selectServiceButton);
         keyboardRows.add(selectServiceRow);
 
-        // Строка выбора даты и времени
-        List<InlineKeyboardButton> selectDateTimeRow = new ArrayList<>();
-        InlineKeyboardButton selectDateTimeButton = new InlineKeyboardButton();
-        selectDateTimeButton.setText("Выбрать дату и время");
-        selectDateTimeButton.setCallbackData("select_date_time");
-        selectDateTimeRow.add(selectDateTimeButton);
-        keyboardRows.add(selectDateTimeRow);
-
-        // Строка отмены или переноса записи
         List<InlineKeyboardButton> cancelRescheduleRow = new ArrayList<>();
         InlineKeyboardButton cancelRescheduleButton = new InlineKeyboardButton();
         cancelRescheduleButton.setText("Отменить или перенести запись");
-        cancelRescheduleButton.setCallbackData("cancel_reschedule");
+        cancelRescheduleButton.setCallbackData("cancel_or_reschedule_recording_");
         cancelRescheduleRow.add(cancelRescheduleButton);
         keyboardRows.add(cancelRescheduleRow);
 
-        // Строка справки
         List<InlineKeyboardButton> helpRow = new ArrayList<>();
         InlineKeyboardButton helpButton = new InlineKeyboardButton();
         helpButton.setText("Справка");
@@ -171,5 +182,4 @@ public class BotLogicServiceImpl implements BotLogicService {
         keyboardMarkup.setKeyboard(keyboardRows);
         return keyboardMarkup;
     }
-
 }

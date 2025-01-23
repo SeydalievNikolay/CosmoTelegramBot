@@ -24,6 +24,8 @@ public class ChatUser {
 
     private String username;
 
+    private String phoneNumber;
+
     private Timestamp registeredAt;
 
 }

@@ -5,7 +5,4 @@ public class ChatUserNotFoundException extends RuntimeException {
         super(message);
     }
 
-    public ChatUserNotFoundException(String message, Throwable cause) {
-        super(message, cause);
-    }
 }

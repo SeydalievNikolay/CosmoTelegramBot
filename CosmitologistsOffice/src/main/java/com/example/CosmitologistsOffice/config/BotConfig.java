@@ -3,7 +3,6 @@ package com.example.CosmitologistsOffice.config;
 import com.example.CosmitologistsOffice.repository.AppointmentRepository;
 import com.example.CosmitologistsOffice.repository.ChatUserRepository;
 import com.example.CosmitologistsOffice.repository.CosmetologistRepository;
-import com.example.CosmitologistsOffice.repository.ServiceRepository;
 import com.example.CosmitologistsOffice.service.*;
 import com.example.CosmitologistsOffice.service.impl.*;
 import lombok.Data;
@@ -39,52 +38,44 @@ public class BotConfig {
                                                      ServicePriceProvider servicePriceProvider,
                                                      NotificationService notificationService,
                                                      AppointmentRepository appointmentRepository,
-                                                     ServiceRepository serviceRepository,
+                                                     CosmetologistRepository cosmetologistRepository,
                                                      RegisterService registerService,
+                                                     ChatUserService chatUserService,
                                                      BotConfig config) {
         return new TelegramBotServiceImpl(botLogicService, appointmentService,
                 servicePriceProvider, notificationService,
-                appointmentRepository,serviceRepository, registerService, config);
+                appointmentRepository,cosmetologistRepository, registerService, chatUserService, config);
     }
 
     @Bean
     @Lazy
-    public TelegramMessageSender telegramMessageSender(@Lazy TelegramBotService telegramBotService) {
+    public MessageSender telegramMessageSender(@Lazy TelegramBotService telegramBotService) {
         return new TelegramMessageSender(telegramBotService);
     }
-
     @Bean
     public BotLogicService botLogicService(ChatUserService chatUserService,
-                                           MessageSender messageSender,
-                                           TelegramMessageSender telegramMessageSender) {
-        return new BotLogicServiceImpl(chatUserService, messageSender, telegramMessageSender);
+                                           MessageSender messageSender) {
+        return new BotLogicServiceImpl(chatUserService, messageSender);
     }
 
     @Bean
-    public AppointmentService appointmentService(AppointmentRepository appointmentRepository,
-                                                 CosmetologistRepository cosmetologistRepository,
-                                                 ServiceRepository serviceRepository,
-                                                 ChatUserRepository chatUserRepository,
-                                                 BotLogicService botLogicService,
-                                                 NotificationService notificationService) {
-        return new AppointmentServiceImpl(appointmentRepository,
-                cosmetologistRepository, serviceRepository, chatUserRepository, botLogicService, notificationService);
+    public AppointmentService appointmentService(AppointmentRepository appointmentRepository) {
+        return new AppointmentServiceImpl(appointmentRepository);
     }
 
     @Bean
     public NotificationService notificationService(BotLogicService botLogicService,
                                                    ChatUserRepository chatUserRepository,
-                                                   ServicePriceProvider servicePriceProvider) {
-        return new NotificationServiceImpl(botLogicService, chatUserRepository, servicePriceProvider);
+                                                   ServicePriceProvider servicePriceProvider,
+                                                   CosmetologistRepository cosmetologistRepository,
+                                                   AppointmentRepository appointmentRepository) {
+        return new NotificationServiceImpl(botLogicService, chatUserRepository, servicePriceProvider, cosmetologistRepository, appointmentRepository);
     }
 
     @Bean
-    public RegisterService registerService(ChatUserRepository chatUserRepository,
-                                           TelegramMessageSender telegramMessageSender,
-                                           NotificationService notificationService,
-                                           CosmetologistRepository cosmetologistRepository,
-                                           AppointmentService appointmentService) {
-        return new RegisterServiceImpl(chatUserRepository, telegramMessageSender, notificationService, cosmetologistRepository, appointmentService);
+    public RegisterService registerService(
+                                           MessageSender telegramMessageSender) {
+        return new RegisterServiceImpl(telegramMessageSender);
     }
 
     @Bean
@@ -93,23 +84,15 @@ public class BotConfig {
     }
 
     @Bean
-    public ServicePriceProvider servicePriceProvider(ServiceRepository serviceRepository) {
-        return new ServicePriceProviderImpl(serviceRepository);
+    public ServicePriceProvider servicePriceProvider() {
+        return new ServicePriceProviderImpl();
     }
+
+
 
     @Bean
     public BotInitializer botInitializer(TelegramBotsApi telegramBotsApi,
                                          TelegramBotServiceImpl telegramBotService) {
         return new BotInitializer(telegramBotsApi, telegramBotService);
     }
-
-/*    @Bean
-    public AbsSender absSender() {
-        return new DefaultAbsSender(new DefaultBotOptions()) {
-            @Override
-            public String getBotToken() {
-                return token;
-            }
-        };
-    }*/
 }

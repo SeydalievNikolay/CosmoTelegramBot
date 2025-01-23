@@ -27,12 +27,10 @@ public class Appointment {
     @Column(name = "booked")
     private Boolean booked;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "cosmetologist_id")
     private Cosmetologist cosmetologist;
 
-    public Appointment(Long chatId, String selectedService, String selectedDate, String selectedTime) {
-    }
     public void setChatUser(ChatUser chatUser) {
         this.chatId = chatUser.getChatId();
     }

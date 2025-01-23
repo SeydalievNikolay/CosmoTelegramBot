@@ -12,5 +12,4 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
 
     List<Appointment> findByDate(String date);
 
-    Appointment findByChatIdAndService(long chatId, String selectedService);
 }

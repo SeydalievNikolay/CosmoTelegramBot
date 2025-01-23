@@ -6,6 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CosmetologistRepository extends JpaRepository<Cosmetologist, Long> {
-
     Cosmetologist findByTelegramChatId(Long chatId);
 }

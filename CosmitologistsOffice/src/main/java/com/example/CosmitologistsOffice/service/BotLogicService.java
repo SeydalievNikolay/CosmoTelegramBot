@@ -1,9 +1,8 @@
 package com.example.CosmitologistsOffice.service;
 
 public interface BotLogicService {
-    void startCommandReceived(Long chatId, String firstName, String lastName, String username);
+    void startCommandReceived(Long chatId, String firstName, String lastName, String username, String phoneNumber);
 
-    void sendMessage(long chatId, String textToSend);
 
     void sendHelpMessage(long chatId, String message);
 
