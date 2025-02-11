@@ -28,6 +28,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+
 @Slf4j
 public class TelegramBotServiceImpl extends TelegramLongPollingBot implements TelegramBotService {
     private final BotLogicService botLogicService;
@@ -132,7 +133,8 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         } else if (messageText.equalsIgnoreCase("/help")) {
             log.info("Получена команда /help");
             botLogicService.sendHelpMessage(chatId, "Помощь");
-        } else if (messageText.matches("^\\+7\\d{10}$")) {
+        } else if (messageText.matches( "^8\\d{10}$")) {
+            log.info("Получени номер телефона для регистрации");
             chatUserService.existPhoneNumber(chatId, messageText);
             registerService.sendPhoneNumberToCosmetologist(chatId, messageText);
             notificationService.notifyingTheCosmetologistWhenRegisteringAUser(chatId);
@@ -193,7 +195,7 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
             log.info("Получена команда reschedule_appointment_");
             long appointmentId = extractAppointmentIdFromMenu(callbackData);
             rescheduleAppointment(chatId, appointmentId);
-        } else if (callbackData.equals("cancel_")) {
+        } else if (callbackData.startsWith("cancel_")) {
             long appointmentId = extractAppointmentId(callbackData);
             cancelAppointment(chatId, appointmentId);
             log.info("Пользователь отменил запись с ID: {}", appointmentId);
@@ -223,7 +225,7 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
         } else if (callbackData.equals(StaticConstant.NO_BUTTON_SEND_PHONE_NUMBER)) {
             log.info("Пользователь отменил регистрацию");
             registerService.sendCancelMessage(chatId);
-        } else if (callbackData.equals(StaticConstant.CANCEL_REGISTRATION)) {
+        } else if (callbackData.equals(StaticConstant.BACK_REGISTRATION)) {
             log.info("Пользователь отменил регистрацию");
             registerService.sendCancelMessage(chatId);
         } else {
@@ -704,5 +706,4 @@ public class TelegramBotServiceImpl extends TelegramLongPollingBot implements Te
     private boolean isService(String callbackData) {
         return servicePriceProvider.getServicePrices().containsKey(callbackData);
     }
-
 }

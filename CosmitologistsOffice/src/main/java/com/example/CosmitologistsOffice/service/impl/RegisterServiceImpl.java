@@ -125,7 +125,7 @@ public class RegisterServiceImpl implements RegisterService {
     }
 
     /**
-     * Формирует клавиатуру для следующего шага в процессе регистрации, включая кнопку отмены.
+     * Формирует клавиатуру для кнопки отмены.
      *
      * @return Список строк клавиатуры с кнопкой отмены регистрации.
      */
@@ -135,7 +135,7 @@ public class RegisterServiceImpl implements RegisterService {
 
         var cancelRegistrationButton = new InlineKeyboardButton();
         cancelRegistrationButton.setText("Отмена");
-        cancelRegistrationButton.setCallbackData(StaticConstant.CANCEL_REGISTRATION);
+        cancelRegistrationButton.setCallbackData(StaticConstant.BACK_REGISTRATION);
         rowInLine.add(cancelRegistrationButton);
 
         rowsInLine.add(rowInLine);

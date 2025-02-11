@@ -17,7 +17,7 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
 @Configuration
 @Data
-@PropertySource("application.properties")
+@PropertySource("application-dev.properties")
 public class BotConfig {
 
     @Value("${bot.name}")
@@ -26,6 +26,8 @@ public class BotConfig {
     String token;
     @Value("${bot.owner}")
     Long ownerId;
+    @Value("${hostname}")
+    private String hostname;
 
     @Bean
     public TelegramBotsApi telegramBotsApi() throws TelegramApiException {
