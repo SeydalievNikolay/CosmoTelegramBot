@@ -1,7 +1,7 @@
 FROM openjdk:21
 ARG JAR_FILE=CosmitologistsOffice/target/*.jar
 ENV BOT_NAME=Cosmetologistsoffice_bot.
-ENV BOT_TOKEN=6598933140:AAFI821-KWmXyEdXUqzJK0ytjhov3ABYXYU
+ENV BOT_TOKEN=
 ENV BOT_DB_USERNAME=postgres
 ENV BOT_DB_PASSWORD=postgres
 COPY ${JAR_FILE} CosmitologistsOffice-0.0.1-SNAPSHOT.jar
